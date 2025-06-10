@@ -1,9 +1,10 @@
+
 import pygame
 import random
 import math
+from pygame import Surface
 from recursos.funcoes.funcionalidades import dadosEmThread
 from recursos.funcoes.funcionalidades import configuracoesDificuldade
-from pygame import Surface
 
 # Inicialização do Pygame
 pygame.init()
@@ -66,11 +67,21 @@ boostCooldown = 15000
 boostAtivo = False
 boostOverlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
 
+# Oponentes
+oponenteJanela1 = pygame.image.load("recursos/imagens/oponente/oponenteMirando1.png")
+oponenteJanela2 = pygame.image.load("recursos/imagens/oponente/oponenteMirando2.png")
+oponenteJanela3 = pygame.image.load("recursos/imagens/oponente/oponenteMirando3.png")
+oponenteJanela1Flip = pygame.transform.flip(oponenteJanela1, True, False)
+oponenteJanela2Flip = pygame.transform.flip(oponenteJanela2, True, False)
+oponenteJanela3Flip = pygame.transform.flip(oponenteJanela3, True, False)
+janelasEsquerda = [(42, 104), (45, 318), (63, 524)]
+janelasDireita = [(823, 104), (820, 318), (830, 524)]
+
 # Pontuação
 pontuacao = 0
 fonte = pygame.font.SysFont("Arial", 30)
 
-# Callback para receber os dados da thread
+# Callback
 def definirDadosJogador(nome, dif):
     global nomeJogador, dificuldade, jogoIniciado
     nomeJogador = nome
@@ -78,7 +89,7 @@ def definirDadosJogador(nome, dif):
     jogoIniciado = True
     configuracoesDificuldade(dificuldade)
 
-# Loop principal do jogo
+# Loop principal
 while rodando:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -86,14 +97,11 @@ while rodando:
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mouseX, mouseY = event.pos
-
             if not jogoIniciado and botaoStart.collidepoint(mouseX, mouseY):
                 dadosEmThread(definirDadosJogador)
-
             if not jogoIniciado and botaoSair.collidepoint(mouseX, mouseY):
                 rodando = False
 
-    # Movimentos e animações do personagem principal
     teclas = pygame.key.get_pressed()
     andando = False
 
@@ -138,16 +146,22 @@ while rodando:
 
     tela.fill("#220202")
 
-    # Tela do jogo com o personagem 
     if jogoIniciado:
         tela.blit(telaJogo, (0, 0))
         tela.blit(img, (posicaoPersonagemX, posicaoPersonagemY))
 
-        # Animação e colisão - Coletável
+        # Oponentes mirando
+        tela.blit(oponenteJanela3, janelasEsquerda[0])
+        tela.blit(oponenteJanela2, janelasEsquerda[1])
+        tela.blit(oponenteJanela1, janelasEsquerda[2])
+        tela.blit(oponenteJanela3Flip, janelasDireita[0])
+        tela.blit(oponenteJanela2Flip, janelasDireita[1])
+        tela.blit(oponenteJanela1Flip, janelasDireita[2])
+
+        # Coletável
         contadorAnimacaoColetavel += 0.1
         posicaoColetavelY = posicaoColetavelYBase + math.sin(contadorAnimacaoColetavel) * 8
         tela.blit(imagemColetavel, (posicaoColetavelX, posicaoColetavelY))
-
         hitboxPersonagem = pygame.Rect(posicaoPersonagemX, posicaoPersonagemY, img.get_width(), img.get_height())
         hitboxColetavel = pygame.Rect(posicaoColetavelX, posicaoColetavelY, imagemColetavel.get_width(), imagemColetavel.get_height())
         if hitboxPersonagem.colliderect(hitboxColetavel):
@@ -158,13 +172,15 @@ while rodando:
                     posicaoColetavelX = novoXColetavel
                     break
 
-        # Aparecimento do boost
+        # Boost
         tempoAtual = pygame.time.get_ticks()
         if not boostVisivel and not boostColetado:
             if random.randint(0, 1000) < 2:
                 while True:
                     novoX = random.randint(200, 700)
-                    if abs(novoX - posicaoColetavelX) > 80:  # distância mínima entre boost e munição
+                    distanciaDaMunição = math.hypot(novoX - posicaoColetavelX, 0)
+                    distanciaDoPersonagem = math.hypot(novoX - posicaoPersonagemX, 0)
+                    if distanciaDaMunição > 100 and distanciaDoPersonagem > 100:
                         posicaoBoostX = novoX
                         break
                 boostVisivel = True
@@ -172,12 +188,10 @@ while rodando:
         if boostColetado and tempoAtual - boostTempoUltimaColeta >= boostCooldown:
             boostColetado = False
 
-        # Animação e colisão do boost
         if boostVisivel:
             boostContadorAnimacao += 0.1
             posicaoBoostY = posicaoBoostY_base + math.sin(boostContadorAnimacao) * 6
             tela.blit(imagemBoost, (posicaoBoostX, posicaoBoostY))
-
             hitboxBoost = pygame.Rect(posicaoBoostX, posicaoBoostY, imagemBoost.get_width(), imagemBoost.get_height())
             if hitboxPersonagem.colliderect(hitboxBoost):
                 boostVisivel = False
@@ -190,26 +204,20 @@ while rodando:
         if boostAtivo and tempoAtual - tempoInicioBoost >= boostDuracao:
             velocidade = velocidadeOriginal
             boostAtivo = False
-            
 
-        # Pontuação na tela
         textoPontos = fonte.render(f"Pontos: {pontuacao}", True, (255, 255, 255))
-        tela.blit(textoPontos, (657, 5))
+        tela.blit(textoPontos, (655, 5))
     else:
         tela.blit(telaInicial, (0, 0))
 
-    # Efeito visual do boost
     if boostAtivo:
         tempoAtual = pygame.time.get_ticks()
         tempoPassado = tempoAtual - tempoInicioBoost
-
         if tempoPassado < boostDuracao:
-            # Efeito normal azul claro
             if tempoPassado < boostDuracao - 1500:
-                boostOverlay.fill((100, 100, 255, 40))  # Azul suave
+                boostOverlay.fill((100, 100, 255, 40))
                 tela.blit(boostOverlay, (0, 0))
             else:
-                # Piscando nos últimos 1.5s
                 if (tempoAtual // 150) % 2 == 0:
                     boostOverlay.fill((100, 100, 255, 80))
                 else:

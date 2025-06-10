@@ -2,11 +2,14 @@ import tkinter as tk
 from tkinter import messagebox, simpledialog
 import threading
 
+# Centralização da janela
 def centralizarJanela(janela, largura, altura, tela_width=1000, tela_height=700):
     x = (tela_width // 2) - (largura // 2)
     y = (tela_height // 2) - (altura // 2)
     janela.geometry(f"{largura}x{altura}+{x}+{y}")
 
+
+# Armazenamento do nome e dificuldade
 def obterNomeEDificuldade():
     nomeJogador = ""
     dificuldade = ""
@@ -62,7 +65,7 @@ def dadosEmThread(callback_definir_dados):
         callback_definir_dados(nome, dificuldade)
     threading.Thread(target=executar).start()
 
-
+# Configurações das dificuldades
 def configuracoesDificuldade(dificuldade):
     global velocidade_inimigo, frequencia_tiros, vida
     if dificuldade == "Normal":
@@ -74,3 +77,6 @@ def configuracoesDificuldade(dificuldade):
     elif dificuldade == "Insano":
         frequencia_tiros = 60
         vida = 1
+
+
+
