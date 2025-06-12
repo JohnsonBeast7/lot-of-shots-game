@@ -1,32 +1,118 @@
-
 import pygame
 import random
 import math
-from pygame import Surface
 from recursos.funcoes.funcionalidades import dadosEmThread
 from recursos.funcoes.funcionalidades import configuracoesDificuldade
 
-# Inicialização do Pygame
+# === CLASSES DE JOGO ===
+class Bala:
+    def __init__(self, x, y, destino):
+        self.x = x
+        self.y = y
+        dx = destino[0] - x
+        dy = destino[1] - y
+        dist = max((dx ** 2 + dy ** 2) ** 0.5, 1)
+        self.vx = (dx / dist) * 10
+        self.vy = (dy / dist) * 10
+        self.ativa = True
+
+    def atualizar(self):
+        if self.ativa:
+            self.x += self.vx
+            self.y += self.vy
+            if self.x < 0 or self.x > 1000 or self.y < 0 or self.y > 700:
+                self.ativa = False
+
+    def desenhar(self, tela):
+        if self.ativa:
+            pygame.draw.circle(tela, (255, 255, 0), (int(self.x), int(self.y)), 4)
+
+class BalaImagem:
+    def __init__(self, x, y, destino, sprite):
+        self.sprite = sprite
+        self.x = x
+        self.y = y
+        dx = destino[0] - x
+        dy = destino[1] - y
+        dist = max((dx ** 2 + dy ** 2) ** 0.5, 1)
+        self.vx = (dx / dist) * 12
+        self.vy = (dy / dist) * 12
+        self.ativa = True
+
+    def atualizar(self):
+        self.x += self.vx
+        self.y += self.vy
+        if self.x < 0 or self.x > 1000 or self.y < 0 or self.y > 700:
+            self.ativa = False
+
+    def desenhar(self, tela):
+        if self.ativa:
+            tela.blit(self.sprite, (self.x, self.y))
+
+
+class Inimigo:
+    def __init__(self, posicao, sprites):
+        self.posicao = posicao
+        self.sprites = sprites
+        self.estado = "aparecendo"
+        self.tempo_estado = pygame.time.get_ticks()
+        self.flash_visivel = False
+        self.bala = None
+
+    def atualizar(self, tempo_atual, pos_personagem):
+        if self.estado == "aparecendo":
+            if tempo_atual - self.tempo_estado > 1000:
+                self.estado = "mirando"
+                self.tempo_estado = tempo_atual
+        elif self.estado == "mirando":
+            if tempo_atual - self.tempo_estado > 1000:
+                self.estado = "atirando"
+                self.tempo_estado = tempo_atual
+                self.flash_visivel = True
+                x_bala = self.posicao[0] + (90 if not self.sprites["flip"] else -10)
+                y_bala = self.posicao[1] + 35
+                self.bala = BalaImagem(x_bala, y_bala, pos_personagem, self.sprites["bala"])
+        elif self.estado == "atirando":
+            if tempo_atual - self.tempo_estado > 100:
+                self.flash_visivel = False
+
+        if self.bala:
+            self.bala.atualizar()
+
+    def desenhar(self, tela):
+        if self.estado == "aparecendo":
+            img = pygame.transform.flip(self.sprites["parado"], True, False) if self.sprites["flip"] else self.sprites["parado"]
+        else:
+            img = pygame.transform.flip(self.sprites["mirando"], True, False) if self.sprites["flip"] else self.sprites["mirando"]
+
+        tela.blit(img, self.posicao)
+
+        if self.flash_visivel:
+            fx = self.posicao[0] + (90 if not self.sprites["flip"] else -30)
+            fy = self.posicao[1] + 30
+            tela.blit(self.sprites["flash"], (fx, fy))
+
+        if self.bala:
+            self.bala.desenhar(tela)
+
+
+# === INICIALIZAÇÃO ===
 pygame.init()
 tela = pygame.display.set_mode((1000, 700))
 fps = pygame.time.Clock()
 rodando = True
 
-# Telas
 telaInicial = pygame.image.load("recursos/imagens/telas/telaInicio.png")
 telaJogo = pygame.image.load("recursos/imagens/telas/telaJogo.png")
 telaMorte = pygame.image.load("recursos/imagens/telas/telaMorte.png")
 
-# Botões
 botaoStart = pygame.Rect(412, 448, 185, 75, border_radius=10)
 botaoSair = pygame.Rect(412, 550, 185, 75, border_radius=10)
 
-# Variáveis do jogo
 jogoIniciado = False
 nomeJogador = ""
 dificuldade = ""
 
-# Personagem
 personagemParado = pygame.image.load("recursos/imagens/personagem/personagemParado.png")
 personagemAndando = [
     pygame.image.load("recursos/imagens/personagem/personagemAndando1.png"),
@@ -46,14 +132,12 @@ frameAtual = 0
 frameTimer = 0
 viradoPraEsquerda = False
 
-# Munição Coletável
 imagemColetavel = pygame.image.load("recursos/imagens/coletaveis/municaoColetavel.png")
 posicaoColetavelX = random.randint(200, 700)
 posicaoColetavelYBase = 610
 posicaoColetavelY = posicaoColetavelYBase
 contadorAnimacaoColetavel = 0
 
-# Speed Boost Coletável
 imagemBoost = pygame.image.load("recursos/imagens/coletaveis/speedBoost.png")
 boostVisivel = False
 boostColetado = False
@@ -67,21 +151,35 @@ boostCooldown = 15000
 boostAtivo = False
 boostOverlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
 
-# Oponentes
-oponenteJanela1 = pygame.image.load("recursos/imagens/oponente/oponenteMirando1.png")
-oponenteJanela2 = pygame.image.load("recursos/imagens/oponente/oponenteMirando2.png")
-oponenteJanela3 = pygame.image.load("recursos/imagens/oponente/oponenteMirando3.png")
-oponenteJanela1Flip = pygame.transform.flip(oponenteJanela1, True, False)
-oponenteJanela2Flip = pygame.transform.flip(oponenteJanela2, True, False)
-oponenteJanela3Flip = pygame.transform.flip(oponenteJanela3, True, False)
+oponenteMirando1 = pygame.image.load("recursos/imagens/oponente/oponenteMirando1.png")
+oponenteMirando2 = pygame.image.load("recursos/imagens/oponente/oponenteMirando2.png")
+oponenteMirando3 = pygame.image.load("recursos/imagens/oponente/oponenteMirando3.png")
+spriteParado = pygame.image.load("recursos/imagens/oponente/oponenteAparecendo.png")
+spriteParadoFlip = pygame.transform.flip(spriteParado, True, False)
+
+
+
+spriteFlash = pygame.image.load("recursos/imagens/oponente/oponenteFlash.png")
+spriteBala = pygame.image.load("recursos/imagens/oponente/oponenteBala.png")
+
 janelasEsquerda = [(42, 104), (45, 318), (63, 524)]
 janelasDireita = [(823, 104), (820, 318), (830, 524)]
 
-# Pontuação
+janelas = [
+    {"pos": (63, 524), "mirando": oponenteMirando1, "parado": spriteParado, "flip": False},
+    {"pos": (45, 318), "mirando": oponenteMirando2, "parado": spriteParado, "flip": False},
+    {"pos": (42, 104), "mirando": oponenteMirando3, "parado": spriteParado, "flip": False},
+    {"pos": (830, 524), "mirando": oponenteMirando1, "parado": spriteParado, "flip": True},  # NÃO flipado
+    {"pos": (820, 318), "mirando": oponenteMirando2, "parado": spriteParado, "flip": True},
+    {"pos": (823, 104), "mirando": oponenteMirando3, "parado": spriteParado, "flip": True},
+]
+
+inimigos = []
+tempoProximoInimigo = pygame.time.get_ticks() + random.randint(1000, 3000)
+
 pontuacao = 0
 fonte = pygame.font.SysFont("Arial", 30)
 
-# Callback
 def definirDadosJogador(nome, dif):
     global nomeJogador, dificuldade, jogoIniciado
     nomeJogador = nome
@@ -89,12 +187,11 @@ def definirDadosJogador(nome, dif):
     jogoIniciado = True
     configuracoesDificuldade(dificuldade)
 
-# Loop principal
+# === LOOP PRINCIPAL ===
 while rodando:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             rodando = False
-
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mouseX, mouseY = event.pos
             if not jogoIniciado and botaoStart.collidepoint(mouseX, mouseY):
@@ -140,25 +237,33 @@ while rodando:
         img = personagemAndando[frameAtual]
     else:
         img = personagemParado
-
     if viradoPraEsquerda:
         img = pygame.transform.flip(img, True, False)
 
     tela.fill("#220202")
-
     if jogoIniciado:
         tela.blit(telaJogo, (0, 0))
         tela.blit(img, (posicaoPersonagemX, posicaoPersonagemY))
 
-        # Oponentes mirando
-        tela.blit(oponenteJanela3, janelasEsquerda[0])
-        tela.blit(oponenteJanela2, janelasEsquerda[1])
-        tela.blit(oponenteJanela1, janelasEsquerda[2])
-        tela.blit(oponenteJanela3Flip, janelasDireita[0])
-        tela.blit(oponenteJanela2Flip, janelasDireita[1])
-        tela.blit(oponenteJanela1Flip, janelasDireita[2])
+        tempoAtual = pygame.time.get_ticks()
+        if tempoAtual >= tempoProximoInimigo and len(inimigos) < 6:
+            janelas_disponiveis = [j for j in janelas if all(i.posicao != j["pos"] for i in inimigos)]
+            if janelas_disponiveis:
+                janela = random.choice(janelas_disponiveis)
+                sprites = {
+                    "parado": janela["parado"],
+                    "mirando": janela["mirando"],
+                    "flash": spriteFlash,
+                    "bala": spriteBala,
+                    "flip": janela["flip"]
+                }
+                inimigos.append(Inimigo(janela["pos"], sprites))
+            tempoProximoInimigo = tempoAtual + random.randint(2000, 4000)
 
-        # Coletável
+        for inimigo in inimigos:
+            inimigo.atualizar(tempoAtual, (posicaoPersonagemX, posicaoPersonagemY))
+            inimigo.desenhar(tela)
+
         contadorAnimacaoColetavel += 0.1
         posicaoColetavelY = posicaoColetavelYBase + math.sin(contadorAnimacaoColetavel) * 8
         tela.blit(imagemColetavel, (posicaoColetavelX, posicaoColetavelY))
@@ -172,8 +277,6 @@ while rodando:
                     posicaoColetavelX = novoXColetavel
                     break
 
-        # Boost
-        tempoAtual = pygame.time.get_ticks()
         if not boostVisivel and not boostColetado:
             if random.randint(0, 1000) < 2:
                 while True:
