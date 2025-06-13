@@ -6,7 +6,7 @@ from recursos.funcoes.funcionalidades import configuracoesDificuldade
 
 # === CLASSES DE JOGO ===
 class Bala:
-    def __init__(self, x, y, destino):
+    def __init__(self, x, y, destino, sprite_original):
         self.x = x
         self.y = y
         dx = destino[0] - x
@@ -15,6 +15,9 @@ class Bala:
         self.vx = (dx / dist) * 10
         self.vy = (dy / dist) * 10
         self.ativa = True
+        angle = math.degrees(math.atan2(-dy, dx))
+        self.sprite = pygame.transform.rotate(sprite_original, angle)
+
 
     def atualizar(self):
         if self.ativa:
@@ -28,16 +31,21 @@ class Bala:
             pygame.draw.circle(tela, (255, 255, 0), (int(self.x), int(self.y)), 4)
 
 class BalaImagem:
-    def __init__(self, x, y, destino, sprite):
-        self.sprite = sprite
+    def __init__(self, x, y, destino, sprite_original):
         self.x = x
         self.y = y
+
         dx = destino[0] - x
         dy = destino[1] - y
         dist = max((dx ** 2 + dy ** 2) ** 0.5, 1)
         self.vx = (dx / dist) * 12
         self.vy = (dy / dist) * 12
         self.ativa = True
+
+        # Rotaciona a bala para apontar para o personagem
+        angle = math.degrees(math.atan2(-dy, dx))
+        self.sprite = pygame.transform.rotate(sprite_original, angle)
+
 
     def atualizar(self):
         self.x += self.vx
@@ -50,14 +58,18 @@ class BalaImagem:
             tela.blit(self.sprite, (self.x, self.y))
 
 
+
 class Inimigo:
-    def __init__(self, posicao, sprites):
-        self.posicao = posicao
+    def __init__(self, pos_parado, pos_mirando, sprites):
+        self.pos_parado = pos_parado
+        self.pos_mirando = pos_mirando
         self.sprites = sprites
         self.estado = "aparecendo"
         self.tempo_estado = pygame.time.get_ticks()
         self.flash_visivel = False
         self.bala = None
+        self.posicao = pos_parado
+
 
     def atualizar(self, tempo_atual, pos_personagem):
         if self.estado == "aparecendo":
@@ -69,9 +81,13 @@ class Inimigo:
                 self.estado = "atirando"
                 self.tempo_estado = tempo_atual
                 self.flash_visivel = True
-                x_bala = self.posicao[0] + (90 if not self.sprites["flip"] else -10)
-                y_bala = self.posicao[1] + 35
-                self.bala = BalaImagem(x_bala, y_bala, pos_personagem, self.sprites["bala"])
+                x_bala = self.pos_mirando[0] + (90 if not self.sprites["flip"] else -10)
+                y_bala = self.pos_mirando[1] + 35
+                destino = (pos_personagem[0] + img.get_width() // 2, pos_personagem[1] + img.get_height() // 2)
+                sprite_bala = self.sprites["bala"]  # agora não precisa flipar aqui
+                self.bala = BalaImagem(x_bala, y_bala, destino, self.sprites["bala"])
+
+
         elif self.estado == "atirando":
             if tempo_atual - self.tempo_estado > 100:
                 self.flash_visivel = False
@@ -82,14 +98,17 @@ class Inimigo:
     def desenhar(self, tela):
         if self.estado == "aparecendo":
             img = pygame.transform.flip(self.sprites["parado"], True, False) if self.sprites["flip"] else self.sprites["parado"]
+            tela.blit(img, self.pos_parado)
         else:
             img = pygame.transform.flip(self.sprites["mirando"], True, False) if self.sprites["flip"] else self.sprites["mirando"]
+            tela.blit(img, self.pos_mirando)
 
-        tela.blit(img, self.posicao)
+
+        
 
         if self.flash_visivel:
-            fx = self.posicao[0] + (90 if not self.sprites["flip"] else -30)
-            fy = self.posicao[1] + 30
+            fx = self.pos_mirando[0] + (90 if not self.sprites["flip"] else -30)
+            fy = self.pos_mirando[1] + 30
             tela.blit(self.sprites["flash"], (fx, fy))
 
         if self.bala:
@@ -166,12 +185,12 @@ janelasEsquerda = [(42, 104), (45, 318), (63, 524)]
 janelasDireita = [(823, 104), (820, 318), (830, 524)]
 
 janelas = [
-    {"pos": (63, 524), "mirando": oponenteMirando1, "parado": spriteParado, "flip": False},
-    {"pos": (45, 318), "mirando": oponenteMirando2, "parado": spriteParado, "flip": False},
-    {"pos": (42, 104), "mirando": oponenteMirando3, "parado": spriteParado, "flip": False},
-    {"pos": (830, 524), "mirando": oponenteMirando1, "parado": spriteParado, "flip": True},  # NÃO flipado
-    {"pos": (820, 318), "mirando": oponenteMirando2, "parado": spriteParado, "flip": True},
-    {"pos": (823, 104), "mirando": oponenteMirando3, "parado": spriteParado, "flip": True},
+    {"pos_parado": (63, 524), "pos_mirando": (63, 524), "mirando": oponenteMirando1, "parado": spriteParado, "flip": False},
+    {"pos_parado": (45, 306), "pos_mirando": (45, 318), "mirando": oponenteMirando2, "parado": spriteParado, "flip": False},
+    {"pos_parado": (42, 88), "pos_mirando": (42, 104), "mirando": oponenteMirando3, "parado": spriteParado, "flip": False},
+    {"pos_parado": (830, 524), "pos_mirando": (830, 524), "mirando": oponenteMirando1, "parado": spriteParado, "flip": True},
+    {"pos_parado": (820, 306), "pos_mirando": (820, 318), "mirando": oponenteMirando2, "parado": spriteParado, "flip": True},
+    {"pos_parado": (823, 88), "pos_mirando": (823, 104), "mirando": oponenteMirando3, "parado": spriteParado, "flip": True},
 ]
 
 inimigos = []
@@ -247,7 +266,7 @@ while rodando:
 
         tempoAtual = pygame.time.get_ticks()
         if tempoAtual >= tempoProximoInimigo and len(inimigos) < 6:
-            janelas_disponiveis = [j for j in janelas if all(i.posicao != j["pos"] for i in inimigos)]
+            janelas_disponiveis = [j for j in janelas if all(i.posicao != j["pos_parado"] for i in inimigos)]
             if janelas_disponiveis:
                 janela = random.choice(janelas_disponiveis)
                 sprites = {
@@ -257,7 +276,7 @@ while rodando:
                     "bala": spriteBala,
                     "flip": janela["flip"]
                 }
-                inimigos.append(Inimigo(janela["pos"], sprites))
+                inimigos.append(Inimigo(janela["pos_parado"], janela["pos_mirando"], sprites))
             tempoProximoInimigo = tempoAtual + random.randint(2000, 4000)
 
         for inimigo in inimigos:
