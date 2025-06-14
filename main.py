@@ -31,10 +31,9 @@ class Bala:
             pygame.draw.circle(tela, (255, 255, 0), (int(self.x), int(self.y)), 4)
 
 class BalaImagem:
-    def __init__(self, x, y, destino, sprite_original):
+    def __init__(self, x, y, destino, sprite_original, flip=False):
         self.x = x
         self.y = y
-
         dx = destino[0] - x
         dy = destino[1] - y
         dist = max((dx ** 2 + dy ** 2) ** 0.5, 1)
@@ -42,10 +41,13 @@ class BalaImagem:
         self.vy = (dy / dist) * 12
         self.ativa = True
 
-        # Rotaciona a bala para apontar para o personagem
+        # Rotaciona a sprite da bala para apontar para o destino
         angle = math.degrees(math.atan2(-dy, dx))
-        self.sprite = pygame.transform.rotate(sprite_original, angle)
+        if flip:
+            sprite_original = pygame.transform.flip(sprite_original, True, False)
+            angle += 180
 
+        self.sprite = pygame.transform.rotate(sprite_original, angle)
 
     def atualizar(self):
         self.x += self.vx
@@ -56,6 +58,7 @@ class BalaImagem:
     def desenhar(self, tela):
         if self.ativa:
             tela.blit(self.sprite, (self.x, self.y))
+
 
 
 
@@ -76,16 +79,50 @@ class Inimigo:
             if tempo_atual - self.tempo_estado > 1000:
                 self.estado = "mirando"
                 self.tempo_estado = tempo_atual
-        elif self.estado == "mirando":
+        elif self.estado == "mirando":  
             if tempo_atual - self.tempo_estado > 1000:
                 self.estado = "atirando"
                 self.tempo_estado = tempo_atual
                 self.flash_visivel = True
-                x_bala = self.pos_mirando[0] + (90 if not self.sprites["flip"] else -10)
-                y_bala = self.pos_mirando[1] + 35
-                destino = (pos_personagem[0] + img.get_width() // 2, pos_personagem[1] + img.get_height() // 2)
-                sprite_bala = self.sprites["bala"]  # agora não precisa flipar aqui
-                self.bala = BalaImagem(x_bala, y_bala, destino, self.sprites["bala"])
+            elif self.estado == "atirando":
+            if tempo_atual - self.tempo_estado > 100:
+                self.flash_visivel = False
+            if tempo_atual - self.tempo_estado > 1000:  # espera 1 segundo
+                self.estado = "desaparecendo"
+                self.tempo_estado = tempo_atual
+
+                # Coordenadas corrigidas da bala (posição central da arma)
+                # Ajuste por tipo de sprite mirando (pela altura Y)
+                # Coordenadas corrigidas da bala (posição central da arma)
+                tipo = self.sprites.get("tipo")
+                flip = self.sprites["flip"]
+
+                if tipo == "baixo":
+                    offset_x = 88 if not flip else 10
+                    offset_y = 62
+                elif tipo == "meio":
+                    offset_x = 110 if not flip else 5
+                    offset_y = 83
+                else:  # topo
+                    offset_x = 96 if not flip else 10
+                    offset_y = 90
+
+                x_saida = self.pos_mirando[0] + offset_x
+                y_saida = self.pos_mirando[1] + offset_y
+
+
+
+                y_saida = self.pos_mirando[1] + offset_y
+
+
+                # Destino no centro do personagem
+                largura_pers = personagemParado.get_width()
+                altura_pers = personagemParado.get_height()
+                destino = (pos_personagem[0] + largura_pers // 2, pos_personagem[1] + altura_pers // 2)
+
+                sprite_bala = self.sprites["bala"]
+                self.bala = BalaImagem(x_saida, y_saida, destino, sprite_bala, flip=self.sprites["flip"])
+
 
 
         elif self.estado == "atirando":
@@ -107,12 +144,34 @@ class Inimigo:
         
 
         if self.flash_visivel:
-            fx = self.pos_mirando[0] + (90 if not self.sprites["flip"] else -30)
-            fy = self.pos_mirando[1] + 30
+            tipo = self.sprites.get("tipo")
+            flip = self.sprites["flip"]  # ADICIONE ESTA LINHA AQUI
+
+            if tipo == "baixo":
+                offset_x = 88 if not flip else 110
+                offset_y = 62
+            elif tipo == "meio":
+                offset_x = 108 if not flip else 130
+                offset_y = 81
+            else:  # topo
+                offset_x = 96 if not flip else 123
+                offset_y = 90
+
+            if self.sprites["flip"]:
+                fx = self.pos_mirando[0] + self.sprites["mirando"].get_width() - offset_x
+            else:
+                fx = self.pos_mirando[0] + offset_x
+
+            fy = self.pos_mirando[1] + offset_y
+
             tela.blit(self.sprites["flash"], (fx, fy))
+
+
 
         if self.bala:
             self.bala.desenhar(tela)
+
+        
 
 
 # === INICIALIZAÇÃO ===
@@ -185,13 +244,15 @@ janelasEsquerda = [(42, 104), (45, 318), (63, 524)]
 janelasDireita = [(823, 104), (820, 318), (830, 524)]
 
 janelas = [
-    {"pos_parado": (63, 524), "pos_mirando": (63, 524), "mirando": oponenteMirando1, "parado": spriteParado, "flip": False},
-    {"pos_parado": (45, 306), "pos_mirando": (45, 318), "mirando": oponenteMirando2, "parado": spriteParado, "flip": False},
-    {"pos_parado": (42, 88), "pos_mirando": (42, 104), "mirando": oponenteMirando3, "parado": spriteParado, "flip": False},
-    {"pos_parado": (830, 524), "pos_mirando": (830, 524), "mirando": oponenteMirando1, "parado": spriteParado, "flip": True},
-    {"pos_parado": (820, 306), "pos_mirando": (820, 318), "mirando": oponenteMirando2, "parado": spriteParado, "flip": True},
-    {"pos_parado": (823, 88), "pos_mirando": (823, 104), "mirando": oponenteMirando3, "parado": spriteParado, "flip": True},
+    {"pos_parado": (63, 524), "pos_mirando": (63, 524), "mirando": oponenteMirando1, "parado": spriteParado, "flip": False, "tipo": "baixo"},
+    {"pos_parado": (45, 306), "pos_mirando": (45, 318), "mirando": oponenteMirando2, "parado": spriteParado, "flip": False, "tipo": "meio"},
+    {"pos_parado": (42, 88),  "pos_mirando": (42, 104), "mirando": oponenteMirando3, "parado": spriteParado, "flip": False, "tipo": "topo"},
+
+    {"pos_parado": (830, 524), "pos_mirando": (830, 524), "mirando": oponenteMirando1, "parado": spriteParado, "flip": True, "tipo": "baixo"},
+    {"pos_parado": (820, 306), "pos_mirando": (820, 318), "mirando": oponenteMirando2, "parado": spriteParado, "flip": True, "tipo": "meio"},
+    {"pos_parado": (823, 88),  "pos_mirando": (823, 104), "mirando": oponenteMirando3, "parado": spriteParado, "flip": True, "tipo": "topo"},
 ]
+
 
 inimigos = []
 tempoProximoInimigo = pygame.time.get_ticks() + random.randint(1000, 3000)
@@ -274,14 +335,18 @@ while rodando:
                     "mirando": janela["mirando"],
                     "flash": spriteFlash,
                     "bala": spriteBala,
-                    "flip": janela["flip"]
+                    "flip": janela["flip"],
+                    "tipo": janela["tipo"]
                 }
                 inimigos.append(Inimigo(janela["pos_parado"], janela["pos_mirando"], sprites))
             tempoProximoInimigo = tempoAtual + random.randint(2000, 4000)
 
-        for inimigo in inimigos:
+        for inimigo in inimigos[:]:
             inimigo.atualizar(tempoAtual, (posicaoPersonagemX, posicaoPersonagemY))
             inimigo.desenhar(tela)
+            if inimigo.deve_destruir():
+                inimigos.remove(inimigo)
+
 
         contadorAnimacaoColetavel += 0.1
         posicaoColetavelY = posicaoColetavelYBase + math.sin(contadorAnimacaoColetavel) * 8
