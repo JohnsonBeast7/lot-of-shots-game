@@ -66,17 +66,19 @@ def dadosEmThread(callback_definir_dados):
     threading.Thread(target=executar).start()
 
 # Configurações das dificuldades
+# recursos/funcoes/funcionalidades.py
+
 def configuracoesDificuldade(dificuldade):
-    global velocidade_inimigo, frequencia_tiros, vida
     if dificuldade == "Normal":
-        frequencia_tiros = 120
-        vida = 2
-    elif dificuldade == "Difícil":
-        frequencia_tiros = 90
-        vida = 2
+        return 2000, 4000
+    elif dificuldade == "Dificil":
+        return 1000, 2000
     elif dificuldade == "Insano":
-        frequencia_tiros = 60
-        vida = 1
+        return 500, 1000
+    else:
+        return 1500, 2200
+
+
 
 
 

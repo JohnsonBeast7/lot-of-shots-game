@@ -4,6 +4,94 @@ import math
 from recursos.funcoes.funcionalidades import dadosEmThread
 from recursos.funcoes.funcionalidades import configuracoesDificuldade
 
+cortinaConcluida = False
+
+escala = 1.0
+direcao_pulso = 1  # 1 = crescendo, -1 = diminuindo
+velocidade_pulso = 0.005  # quanto menor, mais rápido
+escala_max = 1.1
+escala_min = 0.9
+
+tempoEntreInimigosMin = 1000
+tempoEntreInimigosMax = 2000
+
+vidas = 2
+filtroVermelho = pygame.Surface((1000, 700), pygame.SRCALPHA)
+filtroVermelho.fill((255, 0, 0, 80))
+danoAtivo = False
+tempoUltimoDano = 0
+tempoDano = 5000  # 5 segundos
+jogoCongelado = False
+estadoCortina = "final"  # "fechando", "esperando", "abrindo", "final"
+tempoCortinaFechada = 0
+cortinaEsquerdaX = 0
+cortinaDireitaX = 1000
+velocidadeCortina = 20
+
+def hitbox_personagem_precisa(x, y, sprite):
+    largura = sprite.get_width()
+    altura = sprite.get_height()
+
+    margem_lateral = int(largura * 0.2)
+    margem_superior = int(altura * 0.15)
+    altura_hitbox = int(altura * 0.75)
+
+    return pygame.Rect(
+        x + margem_lateral,
+        y + margem_superior,
+        largura - 2 * margem_lateral,
+        altura_hitbox
+    )
+
+# === FUNÇÃO DE DANO ===
+def aplicar_dano(tempoAtual):
+    global vidas, danoAtivo, tempoUltimoDano, boostAtivo, jogoCongelado
+    global cortinaEsquerdaX, cortinaDireitaX, estadoCortina
+
+    if vidas == 2:
+        vidas = 1
+        danoAtivo = True
+        tempoUltimoDano = tempoAtual
+        boostAtivo = False  # desativa boost azul
+    elif vidas == 1:
+        vidas = 0
+        jogoCongelado = True
+        cortinaEsquerdaX = 0
+        cortinaDireitaX = 1000
+        estadoCortina = "fechando"
+
+# === FUNÇÃO DE CORTINA ===
+def desenhar_cortina(tela):
+    global cortinaEsquerdaX, cortinaDireitaX, estadoCortina, tempoCortinaFechada, jogoCongelado
+    global cortinaConcluida
+
+    if estadoCortina == "fechando":
+        if cortinaEsquerdaX < 500:
+            cortinaEsquerdaX += velocidadeCortina
+            cortinaDireitaX -= velocidadeCortina
+        else:
+            estadoCortina = "esperando"
+            tempoCortinaFechada = pygame.time.get_ticks()
+
+    elif estadoCortina == "esperando":
+        if pygame.time.get_ticks() - tempoCortinaFechada > 1000:
+            estadoCortina = "abrindo"
+
+    elif estadoCortina == "abrindo":
+        if cortinaEsquerdaX > 0:
+            cortinaEsquerdaX -= velocidadeCortina
+            cortinaDireitaX += velocidadeCortina
+        else:
+            estadoCortina = "final"
+            jogoCongelado = False  # libera a lógica se quiser reiniciar
+            cortinaConcluida = True
+
+    # Desenha as cortinas em qualquer estado
+    pygame.draw.rect(tela, (0, 0, 0), (0, 0, cortinaEsquerdaX, 700))
+    pygame.draw.rect(tela, (0, 0, 0), (cortinaDireitaX, 0, 1000 - cortinaDireitaX, 700))
+
+
+
 # === CLASSES DE JOGO ===
 class Bala:
     def __init__(self, x, y, destino, sprite_original):
@@ -79,21 +167,14 @@ class Inimigo:
             if tempo_atual - self.tempo_estado > 1000:
                 self.estado = "mirando"
                 self.tempo_estado = tempo_atual
-        elif self.estado == "mirando":  
+
+        elif self.estado == "mirando":
             if tempo_atual - self.tempo_estado > 1000:
                 self.estado = "atirando"
                 self.tempo_estado = tempo_atual
                 self.flash_visivel = True
-            elif self.estado == "atirando":
-            if tempo_atual - self.tempo_estado > 100:
-                self.flash_visivel = False
-            if tempo_atual - self.tempo_estado > 1000:  # espera 1 segundo
-                self.estado = "desaparecendo"
-                self.tempo_estado = tempo_atual
 
-                # Coordenadas corrigidas da bala (posição central da arma)
-                # Ajuste por tipo de sprite mirando (pela altura Y)
-                # Coordenadas corrigidas da bala (posição central da arma)
+                # Criar a bala no momento do disparo
                 tipo = self.sprites.get("tipo")
                 flip = self.sprites["flip"]
 
@@ -110,12 +191,6 @@ class Inimigo:
                 x_saida = self.pos_mirando[0] + offset_x
                 y_saida = self.pos_mirando[1] + offset_y
 
-
-
-                y_saida = self.pos_mirando[1] + offset_y
-
-
-                # Destino no centro do personagem
                 largura_pers = personagemParado.get_width()
                 altura_pers = personagemParado.get_height()
                 destino = (pos_personagem[0] + largura_pers // 2, pos_personagem[1] + altura_pers // 2)
@@ -123,15 +198,16 @@ class Inimigo:
                 sprite_bala = self.sprites["bala"]
                 self.bala = BalaImagem(x_saida, y_saida, destino, sprite_bala, flip=self.sprites["flip"])
 
-
-
         elif self.estado == "atirando":
             if tempo_atual - self.tempo_estado > 100:
                 self.flash_visivel = False
+            if tempo_atual - self.tempo_estado > 1000:
+                self.estado = "desaparecendo"
+                self.tempo_estado = tempo_atual
 
         if self.bala:
             self.bala.atualizar()
-
+        
     def desenhar(self, tela):
         if self.estado == "aparecendo":
             img = pygame.transform.flip(self.sprites["parado"], True, False) if self.sprites["flip"] else self.sprites["parado"]
@@ -140,12 +216,9 @@ class Inimigo:
             img = pygame.transform.flip(self.sprites["mirando"], True, False) if self.sprites["flip"] else self.sprites["mirando"]
             tela.blit(img, self.pos_mirando)
 
-
-        
-
         if self.flash_visivel:
             tipo = self.sprites.get("tipo")
-            flip = self.sprites["flip"]  # ADICIONE ESTA LINHA AQUI
+            flip = self.sprites["flip"]
 
             if tipo == "baixo":
                 offset_x = 88 if not flip else 110
@@ -157,7 +230,7 @@ class Inimigo:
                 offset_x = 96 if not flip else 123
                 offset_y = 90
 
-            if self.sprites["flip"]:
+            if flip:
                 fx = self.pos_mirando[0] + self.sprites["mirando"].get_width() - offset_x
             else:
                 fx = self.pos_mirando[0] + offset_x
@@ -166,10 +239,17 @@ class Inimigo:
 
             tela.blit(self.sprites["flash"], (fx, fy))
 
-
-
         if self.bala:
             self.bala.desenhar(tela)
+
+
+
+            
+    def deve_destruir(self):
+        return self.estado == "desaparecendo" and pygame.time.get_ticks() - self.tempo_estado > 200
+
+
+    
 
         
 
@@ -180,12 +260,17 @@ tela = pygame.display.set_mode((1000, 700))
 fps = pygame.time.Clock()
 rodando = True
 
+imagemCoracao = pygame.image.load("recursos/imagens/ui/coracao.png").convert_alpha()
+
 telaInicial = pygame.image.load("recursos/imagens/telas/telaInicio.png")
 telaJogo = pygame.image.load("recursos/imagens/telas/telaJogo.png")
 telaMorte = pygame.image.load("recursos/imagens/telas/telaMorte.png")
 
 botaoStart = pygame.Rect(412, 448, 185, 75, border_radius=10)
 botaoSair = pygame.Rect(412, 550, 185, 75, border_radius=10)
+botaoJogarDeNovo = pygame.Rect(400, 430, 200, 70)  # ajuste conforme a imagem
+botaoSairMorte = pygame.Rect(400, 520, 200, 70)
+
 
 jogoIniciado = False
 nomeJogador = ""
@@ -255,17 +340,22 @@ janelas = [
 
 
 inimigos = []
-tempoProximoInimigo = pygame.time.get_ticks() + random.randint(1000, 3000)
+
 
 pontuacao = 0
 fonte = pygame.font.SysFont("Arial", 30)
 
+
+
+
 def definirDadosJogador(nome, dif):
-    global nomeJogador, dificuldade, jogoIniciado
+    global nomeJogador, dificuldade, jogoIniciado, tempoEntreInimigosMin, tempoEntreInimigosMax, tempoProximoInimigo
     nomeJogador = nome
     dificuldade = dif
     jogoIniciado = True
-    configuracoesDificuldade(dificuldade)
+    tempoEntreInimigosMin, tempoEntreInimigosMax = configuracoesDificuldade(dificuldade)
+    tempoProximoInimigo = pygame.time.get_ticks() + random.randint(tempoEntreInimigosMin, tempoEntreInimigosMax)
+
 
 # === LOOP PRINCIPAL ===
 while rodando:
@@ -278,9 +368,32 @@ while rodando:
                 dadosEmThread(definirDadosJogador)
             if not jogoIniciado and botaoSair.collidepoint(mouseX, mouseY):
                 rodando = False
+    
+        if cortinaConcluida and vidas == 0 and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mouseX, mouseY = event.pos
+            if botaoJogarDeNovo.collidepoint(mouseX, mouseY):
+                # Reinicia o jogo
+                vidas = 2
+                danoAtivo = False
+                cortinaConcluida = False
+                jogoCongelado = False
+                estadoCortina = "final"
+                inimigos.clear()
+                pontuacao = 0
+                posicaoPersonagemX = 500
+                posicaoPersonagemY = 535
+                boostVisivel = False
+                boostColetado = False
+                boostAtivo = False
+                velocidade = velocidadeOriginal
+                tempoProximoInimigo = pygame.time.get_ticks() + random.randint(tempoEntreInimigosMin, tempoEntreInimigosMax)
+
+            elif botaoSairMorte.collidepoint(mouseX, mouseY):
+                rodando = False
 
     teclas = pygame.key.get_pressed()
     andando = False
+    tempoAtual = pygame.time.get_ticks()
 
     if jogoIniciado:
         if teclas[pygame.K_a]:
@@ -315,6 +428,8 @@ while rodando:
             frameTimer = 0
             frameAtual = (frameAtual + 1) % len(personagemAndando)
         img = personagemAndando[frameAtual]
+  
+
     else:
         img = personagemParado
     if viradoPraEsquerda:
@@ -325,7 +440,12 @@ while rodando:
         tela.blit(telaJogo, (0, 0))
         tela.blit(img, (posicaoPersonagemX, posicaoPersonagemY))
 
-        tempoAtual = pygame.time.get_ticks()
+       
+
+          # === FILTRO VERMELHO E CORTINA ===
+       
+
+        # Criação de novos inimigos
         if tempoAtual >= tempoProximoInimigo and len(inimigos) < 6:
             janelas_disponiveis = [j for j in janelas if all(i.posicao != j["pos_parado"] for i in inimigos)]
             if janelas_disponiveis:
@@ -339,13 +459,24 @@ while rodando:
                     "tipo": janela["tipo"]
                 }
                 inimigos.append(Inimigo(janela["pos_parado"], janela["pos_mirando"], sprites))
-            tempoProximoInimigo = tempoAtual + random.randint(2000, 4000)
+            tempoProximoInimigo = tempoAtual + random.randint(tempoEntreInimigosMin, tempoEntreInimigosMax)
 
+        # Atualização e desenho de todos os inimigos existentes (sempre roda)
         for inimigo in inimigos[:]:
             inimigo.atualizar(tempoAtual, (posicaoPersonagemX, posicaoPersonagemY))
             inimigo.desenhar(tela)
+
+            if inimigo.bala and inimigo.bala.ativa:
+                hitboxPers = hitbox_personagem_precisa(posicaoPersonagemX, posicaoPersonagemY, img)
+                hitboxBala = pygame.Rect(inimigo.bala.x, inimigo.bala.y, 6, 6)
+                if hitboxPers.colliderect(hitboxBala):
+                    inimigo.bala.ativa = False
+                    if not jogoCongelado:
+                        aplicar_dano(tempoAtual)
+
             if inimigo.deve_destruir():
                 inimigos.remove(inimigo)
+
 
 
         contadorAnimacaoColetavel += 0.1
@@ -393,7 +524,7 @@ while rodando:
             boostAtivo = False
 
         textoPontos = fonte.render(f"Pontos: {pontuacao}", True, (255, 255, 255))
-        tela.blit(textoPontos, (655, 5))
+        tela.blit(textoPontos, (655, 40))
     else:
         tela.blit(telaInicial, (0, 0))
 
@@ -413,6 +544,58 @@ while rodando:
         else:
             velocidade = velocidadeOriginal
             boostAtivo = False
+
+
+    if danoAtivo and not jogoCongelado:
+        tela.blit(filtroVermelho, (0, 0))
+        if tempoAtual - tempoUltimoDano > tempoDano:
+            danoAtivo = False
+            if vidas == 1:
+                vidas = 2
+
+    if jogoCongelado:
+                desenhar_cortina(tela)
+
+    # === Coração pulsando ===
+    if jogoIniciado and vidas > 0:
+        # Acelera batimento se com 1 vida
+        velocidadePulso = 0.015 if vidas == 1 else 0.005
+
+        escala += direcao_pulso * velocidadePulso
+        if escala >= escala_max:
+            escala = escala_max
+            direcao_pulso = -1
+        elif escala <= escala_min:
+            escala = escala_min
+            direcao_pulso = 1
+
+        largura = int(imagemCoracao.get_width() * escala)
+        altura = int(imagemCoracao.get_height() * escala)
+        coracaoEscalado = pygame.transform.smoothscale(imagemCoracao, (largura, altura))
+
+
+        # Centralizado em (20, 20) com compensação de escala
+        posX = 210 - (largura - imagemCoracao.get_width()) // 2
+        posY = 10 - (altura - imagemCoracao.get_height()) // 2
+        tela.blit(coracaoEscalado, (posX, posY))
+
+        # Primeiro: fundo preto se a cortina estiver abrindo ou esperando
+    if estadoCortina in ["esperando", "abrindo"]:
+        tela.fill((0, 0, 0))
+
+    # Segundo: desenha a cortina se estiver em transição
+    if jogoCongelado or estadoCortina in ["fechando", "esperando", "abrindo"]:
+        desenhar_cortina(tela)
+
+    # Terceiro: só mostra a tela de morte quando a cortina terminou de abrir
+    if cortinaConcluida and vidas == 0:
+        tela.fill((0, 0, 0))
+        tela.blit(telaMorte, (0, 0))
+        pygame.draw.rect(tela, (255, 0, 0), botaoJogarDeNovo, 2)  # borda vermelha
+        pygame.draw.rect(tela, (0, 255, 0), botaoSairMorte, 2)    # borda verde
+        
+    
+
 
     pygame.display.flip()
     fps.tick(144)
