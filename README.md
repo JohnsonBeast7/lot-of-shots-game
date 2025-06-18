@@ -6,9 +6,9 @@
 
 📝 Testador
 
-    Nome:
+    Nome: João Victor Bordignon
 
-    RA:
+    RA:1137717
 
 🕹️ Sobre o Jogo
 
