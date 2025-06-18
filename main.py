@@ -1,14 +1,97 @@
 import pygame
 import random
 import math
-from recursos.funcoes.funcionalidades import dadosEmThread
+from recursos.funcoes.funcionalidades import dadosEmThreadPorVoz
 from recursos.funcoes.funcionalidades import configuracoesDificuldade
+import os
+import datetime
+import json
+import speech_recognition as sr
+import pyttsx3
 
+def capturar_nome_por_voz():
+    reconhecedor = sr.Recognizer()
+    microfone = sr.Microphone()
+    engine = pyttsx3.init()
+
+    with microfone as source:
+        print("Fale seu nome...")
+        engine.say("Diga seu nome")
+        engine.runAndWait()
+
+        reconhecedor.energy_threshold = 300  # força sensibilidade menor
+        reconhecedor.adjust_for_ambient_noise(source, duration=1.2)
+
+        try:
+            audio = reconhecedor.listen(source, timeout=5, phrase_time_limit=4)
+        except sr.WaitTimeoutError:
+            print("Tempo de fala esgotado.")
+            engine.say("Você não falou nada.")
+            engine.runAndWait()
+            return None
+
+    try:
+        nome = reconhecedor.recognize_google(audio, language="pt-BR")
+        print(f"Nome reconhecido: {nome}")
+        engine.say(f"Bem-vindo, {nome}")
+        engine.runAndWait()
+        return nome
+    except sr.UnknownValueError:
+        print("Não entendi.")
+        engine.say("Desculpe, não entendi.")
+        engine.runAndWait()
+        return None
+    except sr.RequestError as e:
+        print("Erro no serviço de reconhecimento:", e)
+        engine.say("Erro ao acessar o serviço.")
+        engine.runAndWait()
+        return None
+
+
+CAMINHO_LOG = "log.dat"
+
+def salvar_log(pontuacao):
+    agora = datetime.datetime.now()
+    registro = {
+        "pontuacao": pontuacao,
+        "data": agora.strftime("%d/%m/%Y"),
+        "hora": agora.strftime("%H:%M:%S")
+    }
+
+    logs = []
+
+  
+    if os.path.exists(CAMINHO_LOG):
+        with open(CAMINHO_LOG, "r") as f:
+            try:
+                logs = json.load(f)
+            except:
+                logs = []
+
+   
+    logs.append(registro)
+    logs = logs[-5:]
+
+   
+    with open(CAMINHO_LOG, "w") as f:
+        json.dump(logs, f)
+
+def carregar_logs():
+    if not os.path.exists(CAMINHO_LOG):
+        return []
+
+    with open(CAMINHO_LOG, "r") as f:
+        try:
+            return json.load(f)
+        except:
+            return []
+
+logSalvo = False
 cortinaConcluida = False
 
 escala = 1.0
-direcao_pulso = 1  # 1 = crescendo, -1 = diminuindo
-velocidade_pulso = 0.005  # quanto menor, mais rápido
+direcao_pulso = 1 
+velocidade_pulso = 0.005 
 escala_max = 1.1
 escala_min = 0.9
 
@@ -20,9 +103,9 @@ filtroVermelho = pygame.Surface((1000, 700), pygame.SRCALPHA)
 filtroVermelho.fill((255, 0, 0, 80))
 danoAtivo = False
 tempoUltimoDano = 0
-tempoDano = 5000  # 5 segundos
+tempoDano = 5000  
 jogoCongelado = False
-estadoCortina = "final"  # "fechando", "esperando", "abrindo", "final"
+estadoCortina = "final" 
 tempoCortinaFechada = 0
 cortinaEsquerdaX = 0
 cortinaDireitaX = 1000
@@ -43,7 +126,7 @@ def hitbox_personagem_precisa(x, y, sprite):
         altura_hitbox
     )
 
-# === FUNÇÃO DE DANO ===
+
 def aplicar_dano(tempoAtual):
     global vidas, danoAtivo, tempoUltimoDano, boostAtivo, jogoCongelado
     global cortinaEsquerdaX, cortinaDireitaX, estadoCortina
@@ -52,7 +135,7 @@ def aplicar_dano(tempoAtual):
         vidas = 1
         danoAtivo = True
         tempoUltimoDano = tempoAtual
-        boostAtivo = False  # desativa boost azul
+        boostAtivo = False
     elif vidas == 1:
         vidas = 0
         jogoCongelado = True
@@ -60,7 +143,7 @@ def aplicar_dano(tempoAtual):
         cortinaDireitaX = 1000
         estadoCortina = "fechando"
 
-# === FUNÇÃO DE CORTINA ===
+
 def desenhar_cortina(tela):
     global cortinaEsquerdaX, cortinaDireitaX, estadoCortina, tempoCortinaFechada, jogoCongelado
     global cortinaConcluida
@@ -83,16 +166,16 @@ def desenhar_cortina(tela):
             cortinaDireitaX += velocidadeCortina
         else:
             estadoCortina = "final"
-            jogoCongelado = False  # libera a lógica se quiser reiniciar
+            jogoCongelado = False 
             cortinaConcluida = True
 
-    # Desenha as cortinas em qualquer estado
+   
     pygame.draw.rect(tela, (0, 0, 0), (0, 0, cortinaEsquerdaX, 700))
     pygame.draw.rect(tela, (0, 0, 0), (cortinaDireitaX, 0, 1000 - cortinaDireitaX, 700))
 
 
 
-# === CLASSES DE JOGO ===
+
 class Bala:
     def __init__(self, x, y, destino, sprite_original):
         self.x = x
@@ -129,7 +212,7 @@ class BalaImagem:
         self.vy = (dy / dist) * 12
         self.ativa = True
 
-        # Rotaciona a sprite da bala para apontar para o destino
+      
         angle = math.degrees(math.atan2(-dy, dx))
         if flip:
             sprite_original = pygame.transform.flip(sprite_original, True, False)
@@ -174,7 +257,7 @@ class Inimigo:
                 self.tempo_estado = tempo_atual
                 self.flash_visivel = True
 
-                # Criar a bala no momento do disparo
+              
                 tipo = self.sprites.get("tipo")
                 flip = self.sprites["flip"]
 
@@ -254,7 +337,6 @@ class Inimigo:
         
 
 
-# === INICIALIZAÇÃO ===
 pygame.init()
 tela = pygame.display.set_mode((1000, 700))
 fps = pygame.time.Clock()
@@ -268,8 +350,8 @@ telaMorte = pygame.image.load("recursos/imagens/telas/telaMorte.png")
 
 botaoStart = pygame.Rect(412, 448, 185, 75, border_radius=10)
 botaoSair = pygame.Rect(412, 550, 185, 75, border_radius=10)
-botaoJogarDeNovo = pygame.Rect(400, 430, 200, 70)  # ajuste conforme a imagem
-botaoSairMorte = pygame.Rect(400, 520, 200, 70)
+botaoJogarDeNovo = pygame.Rect(280, 380, 300, 100)  
+botaoSairMorte = pygame.Rect(280, 510, 245, 100)
 
 
 jogoIniciado = False
@@ -357,7 +439,7 @@ def definirDadosJogador(nome, dif):
     tempoProximoInimigo = pygame.time.get_ticks() + random.randint(tempoEntreInimigosMin, tempoEntreInimigosMax)
 
 
-# === LOOP PRINCIPAL ===
+
 while rodando:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -365,14 +447,18 @@ while rodando:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mouseX, mouseY = event.pos
             if not jogoIniciado and botaoStart.collidepoint(mouseX, mouseY):
-                dadosEmThread(definirDadosJogador)
+                nome = capturar_nome_por_voz()
+                if nome:
+                    dadosEmThreadPorVoz(nome, definirDadosJogador)
+
+
             if not jogoIniciado and botaoSair.collidepoint(mouseX, mouseY):
                 rodando = False
     
         if cortinaConcluida and vidas == 0 and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mouseX, mouseY = event.pos
             if botaoJogarDeNovo.collidepoint(mouseX, mouseY):
-                # Reinicia o jogo
+            
                 vidas = 2
                 danoAtivo = False
                 cortinaConcluida = False
@@ -387,6 +473,7 @@ while rodando:
                 boostAtivo = False
                 velocidade = velocidadeOriginal
                 tempoProximoInimigo = pygame.time.get_ticks() + random.randint(tempoEntreInimigosMin, tempoEntreInimigosMax)
+                logSalvo = False
 
             elif botaoSairMorte.collidepoint(mouseX, mouseY):
                 rodando = False
@@ -442,10 +529,8 @@ while rodando:
 
        
 
-          # === FILTRO VERMELHO E CORTINA ===
        
 
-        # Criação de novos inimigos
         if tempoAtual >= tempoProximoInimigo and len(inimigos) < 6:
             janelas_disponiveis = [j for j in janelas if all(i.posicao != j["pos_parado"] for i in inimigos)]
             if janelas_disponiveis:
@@ -461,7 +546,6 @@ while rodando:
                 inimigos.append(Inimigo(janela["pos_parado"], janela["pos_mirando"], sprites))
             tempoProximoInimigo = tempoAtual + random.randint(tempoEntreInimigosMin, tempoEntreInimigosMax)
 
-        # Atualização e desenho de todos os inimigos existentes (sempre roda)
         for inimigo in inimigos[:]:
             inimigo.atualizar(tempoAtual, (posicaoPersonagemX, posicaoPersonagemY))
             inimigo.desenhar(tela)
@@ -556,9 +640,9 @@ while rodando:
     if jogoCongelado:
                 desenhar_cortina(tela)
 
-    # === Coração pulsando ===
+  
     if jogoIniciado and vidas > 0:
-        # Acelera batimento se com 1 vida
+     
         velocidadePulso = 0.015 if vidas == 1 else 0.005
 
         escala += direcao_pulso * velocidadePulso
@@ -574,26 +658,31 @@ while rodando:
         coracaoEscalado = pygame.transform.smoothscale(imagemCoracao, (largura, altura))
 
 
-        # Centralizado em (20, 20) com compensação de escala
+       
         posX = 210 - (largura - imagemCoracao.get_width()) // 2
         posY = 10 - (altura - imagemCoracao.get_height()) // 2
         tela.blit(coracaoEscalado, (posX, posY))
 
-        # Primeiro: fundo preto se a cortina estiver abrindo ou esperando
+    
     if estadoCortina in ["esperando", "abrindo"]:
         tela.fill((0, 0, 0))
 
-    # Segundo: desenha a cortina se estiver em transição
     if jogoCongelado or estadoCortina in ["fechando", "esperando", "abrindo"]:
         desenhar_cortina(tela)
 
-    # Terceiro: só mostra a tela de morte quando a cortina terminou de abrir
+ 
     if cortinaConcluida and vidas == 0:
         tela.fill((0, 0, 0))
         tela.blit(telaMorte, (0, 0))
-        pygame.draw.rect(tela, (255, 0, 0), botaoJogarDeNovo, 2)  # borda vermelha
-        pygame.draw.rect(tela, (0, 255, 0), botaoSairMorte, 2)    # borda verde
-        
+        logs = carregar_logs()
+        fonteLog = pygame.font.SysFont("Arial", 20)
+        for i, log in enumerate(reversed(logs)):
+            texto = f"{log['data']} {log['hora']} - {log['pontuacao']} pts"
+            imgTexto = fonteLog.render(texto, True, (255, 255, 255))
+            tela.blit(imgTexto, (650, 500 + i * 25))  
+        if not logSalvo:
+            salvar_log(pontuacao)
+            logSalvo = True
     
 
 

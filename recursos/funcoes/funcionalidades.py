@@ -59,14 +59,50 @@ def obterNomeEDificuldade():
 
     return nomeJogador, dificuldade
 
-def dadosEmThread(callback_definir_dados):
+def dadosEmThreadPorVoz(nomeReconhecido, callback_definir_dados):
     def executar():
-        nome, dificuldade = obterNomeEDificuldade()
-        callback_definir_dados(nome, dificuldade)
+        # Aqui só chama a tela de dificuldade
+        def escolher_dificuldade():
+            dificuldade = ""
+
+            while True:
+                root_dif = tk.Tk()
+                root_dif.title("Dificuldade")
+                root_dif.resizable(False, False)
+                centralizarJanela(root_dif, 250, 160)
+
+                tk.Label(root_dif, text=f"Bem-vindo, {nomeReconhecido}").pack(pady=(10, 5))
+                dif = tk.StringVar(value="")
+
+                for nivel in ["Normal", "Difícil", "Insano"]:
+                    tk.Radiobutton(root_dif, text=nivel, variable=dif, value=nivel).pack(anchor=tk.W, padx=20)
+
+                def confirmar():
+                    if dif.get():
+                        root_dif.quit()
+                    else:
+                        aviso = tk.Tk()
+                        aviso.withdraw()
+                        messagebox.showwarning("Atenção", "Escolha uma dificuldade!", parent=aviso)
+                        aviso.destroy()
+
+                tk.Button(root_dif, text="Confirmar", command=confirmar).pack(pady=10)
+                root_dif.mainloop()
+
+                if dif.get():
+                    dificuldade = dif.get()
+                    root_dif.destroy()
+                    break
+                root_dif.destroy()
+
+            return dificuldade
+
+        dificuldade = escolher_dificuldade()
+        callback_definir_dados(nomeReconhecido, dificuldade)
+
     threading.Thread(target=executar).start()
 
-# Configurações das dificuldades
-# recursos/funcoes/funcionalidades.py
+
 
 def configuracoesDificuldade(dificuldade):
     if dificuldade == "Normal":
